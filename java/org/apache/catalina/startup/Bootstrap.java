@@ -344,6 +344,7 @@ public final class Bootstrap {
             catalinaDaemon.getClass().getMethod(methodName, paramTypes);
         if (log.isDebugEnabled())
             log.debug("Calling startup class " + method);
+        // 调用catalina的load方法
         method.invoke(catalinaDaemon, param);
 
     }
@@ -460,6 +461,8 @@ public final class Bootstrap {
         paramValues[0] = Boolean.valueOf(await);
         Method method =
             catalinaDaemon.getClass().getMethod("setAwait", paramTypes);
+        // 反射调用 catalina 的 setAwait方法
+        // 主要作用是阻塞住main线程，等待stop命令到来，如果不阻塞住，main线程执行完就直接退出了
         method.invoke(catalinaDaemon, paramValues);
 
     }
@@ -538,6 +541,7 @@ public final class Bootstrap {
             } else if (command.equals("start")) {
                 // 启动操作
                 // 通过反射调用守护进程引用的Catalina实例的setAwait方法
+                // 主要作用是阻塞住main线程，等待stop命令到来，如果不阻塞住，main线程执行完就直接退出了
                 daemon.setAwait(true);
                 // 调用Catalina实例的load方法
                 daemon.load(args);

@@ -267,26 +267,36 @@ public class Catalina {
 
     /**
      * Create and configure the Digester we will be using for startup.
-     * @return the main digester to parse server.xml
+     * 创建和配置用于启动的Digester
+     * @return the main digester to parse server.xml 返回解析server.xml的digester
      */
     protected Digester createStartDigester() {
         long t1=System.currentTimeMillis();
         // Initialize the digester
         Digester digester = new Digester();
+        // 设置验证解析器标准
         digester.setValidating(false);
+        // 设置规则验证标志
         digester.setRulesValidation(true);
+        // 假的属性
         Map<Class<?>, List<String>> fakeAttributes = new HashMap<>();
         List<String> attrs = new ArrayList<>();
         attrs.add("className");
         fakeAttributes.put(Object.class, attrs);
+        // 设置假属性
         digester.setFakeAttributes(fakeAttributes);
+        // 确定是否使用上下文类加载器来解析/加载在各种规则中定义的类
         digester.setUseContextClassLoader(true);
 
         // Configure the actions we will be using
+        // 配置我们将使用的操作
+        // addObjectCreate方法为指定的参数添加 "对象创建" 规则
         digester.addObjectCreate("Server",
                                  "org.apache.catalina.core.StandardServer",
                                  "className");
+        // 为指定参数添加 "设置属性" 规则
         digester.addSetProperties("Server");
+        // 为指定参数添加 "setNext" 规则
         digester.addSetNext("Server",
                             "setServer",
                             "org.apache.catalina.Server");
@@ -387,6 +397,7 @@ public class Catalina {
                             "org.apache.coyote.UpgradeProtocol");
 
         // Add RuleSets for nested elements
+        // 注册规则集中定义的一组规则实例
         digester.addRuleSet(new NamingRuleSet("Server/GlobalNamingResources/"));
         digester.addRuleSet(new EngineRuleSet("Server/Service/"));
         digester.addRuleSet(new HostRuleSet("Server/Service/Engine/"));
@@ -526,13 +537,18 @@ public class Catalina {
         loaded = true;
 
         long t1 = System.nanoTime();
-
+        // 初始化temp目录
         initDirs();
 
         // Before digester - it may be needed
+        // 初始化naming的一些属性  jmx的环境变量
         initNaming();
 
         // Create and execute our Digester
+        // 创建和配置用于启动的Digester
+        // 配置解析server.xml中各个标签的解析类
+        // Digeter是apache的common项目，作用是将XML转化成对象，使用者直接从对象中获取xml的节点信息。
+        // Digester是对SAX的包装，它也是基于文件流来解析xml文件，只不过这些解析操作对用户是透明的。
         Digester digester = createStartDigester();
 
         InputSource inputSource = null;
@@ -540,6 +556,7 @@ public class Catalina {
         File file = null;
         try {
             try {
+                // 读取config/server.xml文件
                 file = configFile();
                 inputStream = new FileInputStream(file);
                 inputSource = new InputSource(file.toURI().toURL().toString());
@@ -567,6 +584,7 @@ public class Catalina {
             // Alternative: don't bother with xml, just create it manually.
             if (inputStream == null) {
                 try {
+                    // 如果config/server.xml没读取到，就读取server-embed.xml
                     inputStream = getClass().getClassLoader()
                             .getResourceAsStream("server-embed.xml");
                     inputSource = new InputSource
@@ -597,7 +615,9 @@ public class Catalina {
 
             try {
                 inputSource.setByteStream(inputStream);
+                // 把catalina作为一个顶级容器
                 digester.push(this);
+                // 解析过程会实例化各个组件，比如Server、Container、Connector等
                 digester.parse(inputSource);
             } catch (SAXParseException spe) {
                 log.warn("Catalina.start using " + getConfigFile() + ": " +
@@ -617,15 +637,19 @@ public class Catalina {
             }
         }
 
+        // 这里的server在解析xml之后就有值了，是server的Catalina信息
         getServer().setCatalina(this);
         getServer().setCatalinaHome(Bootstrap.getCatalinaHomeFile());
         getServer().setCatalinaBase(Bootstrap.getCatalinaBaseFile());
 
         // Stream redirection
+        // 初始化输入输出
         initStreams();
 
         // Start the new server
         try {
+            // 生命周期init方法
+            // getServer会拿到 StandardServer 实例
             getServer().init();
         } catch (LifecycleException e) {
             if (Boolean.getBoolean("org.apache.catalina.startup.EXIT_ON_INIT_FAILURE")) {
@@ -659,15 +683,18 @@ public class Catalina {
 
     /**
      * Start a new server instance.
+     * 启动一个server实例
      */
     public void start() {
 
         if (getServer() == null) {
+            // 如果server不存在，则重新load
             load();
         }
 
         if (getServer() == null) {
             log.fatal("Cannot start server. Server instance is not configured.");
+            // 仍然不存在，就返回
             return;
         }
 
@@ -675,10 +702,12 @@ public class Catalina {
 
         // Start the new server
         try {
+            // 调用server的start方法
             getServer().start();
         } catch (LifecycleException e) {
             log.fatal(sm.getString("catalina.serverStartFail"), e);
             try {
+                // 异常了就调用server的destroy方法
                 getServer().destroy();
             } catch (LifecycleException e1) {
                 log.debug("destroy() failed for failed Server ", e1);
@@ -692,6 +721,7 @@ public class Catalina {
         }
 
         // Register shutdown hook
+        // 注册关闭钩子
         if (useShutdownHook) {
             if (shutdownHook == null) {
                 shutdownHook = new CatalinaShutdownHook();
@@ -708,8 +738,11 @@ public class Catalina {
             }
         }
 
+        // 前面有设置await=true,在这里发挥作用，目的就是让tomcat在shutdown端口阻塞监听关闭明林
         if (await) {
+            // 等待收到正确的关机命令，然后返回
             await();
+            // 停止现有的服务实例
             stop();
         }
     }
@@ -783,8 +816,10 @@ public class Catalina {
 
 
     protected void initDirs() {
+        // 获取 temp 文件夹的路径
         String temp = System.getProperty("java.io.tmpdir");
         if (temp == null || (!(new File(temp)).isDirectory())) {
+            // 没有配置temp文件夹，打印错误日志
             log.error(sm.getString("embedded.notmp", temp));
         }
     }
